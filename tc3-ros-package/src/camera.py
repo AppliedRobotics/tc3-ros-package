@@ -21,6 +21,7 @@ Markers = tracking_cam_msg.Markers
 Blobs = tracking_cam_msg.Blobs
 pub_aruco = rospy.Publisher('markers', MarkerArray, queue_size=1)
 pub_blobs = rospy.Publisher('blobs', PointArray, queue_size=1)
+pub_new_blobs = rospy.Publisher('new_blobs', PointArray, queue_size=1)
 pub_lines = rospy.Publisher('lines', LineArray, queue_size=1)
 pub_circles = rospy.Publisher('circles', CircleArray, queue_size=1)
 aruco_tf = tf.TransformBroadcaster()
@@ -58,6 +59,15 @@ def onBlob(val):
     except Exception as e:
         print(e)
 
+def onBlobNew(val):
+    try:
+        blobs = tracking_cam_msg.Blobs()
+        if blobs.ParseFromString(val[0].value):
+            send_new_blobs_to_ros(blobs.value)
+    except Exception as e:
+        print(e)
+
+
 def onMarker(val):
     try:
         markers = tracking_cam_msg.Markers()
@@ -68,9 +78,11 @@ def onMarker(val):
 
 
 def onCircle(val):
+    
     try:
         circles = tracking_cam_msg.Circles()
         if circles.ParseFromString(val[0].value):
+            print(circles.value)
             send_circles_to_ros(circles.value)
     except Exception as e:
         print(e)
@@ -86,8 +98,8 @@ def onLines(val):
 
 def send_blobs_to_ros(blobs):
     msg_array = PointArray()
-    print(blobs)
     msg_array.header.stamp = rospy.Time.now()
+    msg_array.header.frame_id = frame
     for blob in blobs:
         msg = Point()
         msg.x = float(blob.cx)
@@ -95,10 +107,21 @@ def send_blobs_to_ros(blobs):
         msg_array.points.append(msg)
     pub_blobs.publish(msg_array)
 
+def send_new_blobs_to_ros(blobs):
+    msg_array = PointArray()
+    msg_array.header.stamp = rospy.Time.now()
+    msg_array.header.frame_id = frame
+    for blob in blobs:
+        msg = Point()
+        msg.x = float(blob.cx)
+        msg.y = float(blob.cy)
+        msg_array.points.append(msg)
+    pub_new_blobs.publish(msg_array)
+
 def send_circles_to_ros(circles):
-    print(circles)
     msg_array = CircleArray()
     msg_array.header.stamp = rospy.Time.now()
+    msg_array.header.frame_id = frame
     for circle in circles:
         msg = Circle()
         msg.center.x = float(circle.x)
@@ -111,6 +134,7 @@ def send_circles_to_ros(circles):
 def send_lines_to_ros(lines):
     msg_array = LineArray()
     msg_array.header.stamp = rospy.Time.now()
+    msg_array.header.frame_id = frame
     for line in lines:
         msg = Line()
         msg.first.x = float(line.x0)
@@ -192,10 +216,15 @@ def main():
         ["root/Processing/CircleDetector/markerCircle"], "circle", 1)
     subscription3.get()
     subscription3.notify(onCircle)
+    
+    subscription4 = sub.subscribe(
+        ["root/Processing/BlobDetectorNew/blobBuffer"], "blob", 1)
+    subscription4.get()
+    subscription4.notify(onBlobNew)
 
-    # subscription2 = sub.subscribe(["root/Processing/ProjectionModule/projectionBuffer"], "projection", 1)
-    # subscription2.get()
-    # subscription2.notify(onProjection)
+    subscription5 = sub.subscribe(["root/Processing/ProjectionModule/projectionBuffer"], "projection", 1)
+    subscription5.get()
+    subscription5.notify(onProjection)
 
     #
     # subscription2 = sub.subscribe(["root/Processing/BlobDetector/blobBuffer"], "blob", 1)
