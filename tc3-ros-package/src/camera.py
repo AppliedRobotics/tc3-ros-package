@@ -9,11 +9,11 @@ import motorcortex
 import time
 import mcx_tracking_cam_pb2 as tracking_cam_msg
 from aruco_msgs.msg import Marker, MarkerArray
-from blobs_msgs.msg import PointArray
+from blobs_msgs.msg import Blob, BlobArray
 from circle_msgs.msg import CircleArray
 from line_msgs.msg import LineArray
 from geometry_msgs.msg import Point
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 import cv2
 from cv_bridge import CvBridge
 import os
@@ -29,12 +29,28 @@ class tc3():
             self.ip = rospy.get_param("~camera_ip")
             print("get ip param:"+str(self.ip))
         else:
+            self.ip = '192.168.42.1'
             print("no ip param -> use default ip")
         if rospy.has_param("~camera_frame"):
             self.frame = rospy.get_param("~camera_frame")
             print("get frame param:"+self.frame)
         else:
+            self.frame = 'tc3'
             print("no frame param -> use default frame")
+        
+        if rospy.has_param("~namespace"):
+            self.namespace = rospy.get_param("~namespace")
+            print("get namespace param:"+self.namespace)
+        else:
+            self.self.namespace = 'tc3'
+            print("no namespace param -> use default namespace")
+        
+        if rospy.has_param("~publish_image"):
+            self.publish_image = rospy.get_param("~publish_image")
+            print("get publish_image param:"+str(self.publish_image))
+        else:
+            self.publish_image = False
+            print("no publish_image param -> use default publish_image")
         
         # Creating empty object for parameter tree
         parameter_tree = motorcortex.ParameterTree()
@@ -50,12 +66,14 @@ class tc3():
         self.MarkersMarkers = tracking_cam_msg.Markers
         self.BlobsBlobs = tracking_cam_msg.Blobs
         self.aruco_tf = tf.TransformBroadcaster()
-        self.pub_aruco = rospy.Publisher('markers', MarkerArray, queue_size=1)
-        self.pub_blobs = rospy.Publisher('blobs', PointArray, queue_size=1)
-        self.pub_new_blobs = rospy.Publisher('new_blobs', PointArray, queue_size=1)
-        self.pub_lines = rospy.Publisher('lines', LineArray, queue_size=1)
-        self.pub_circles = rospy.Publisher('circles', CircleArray, queue_size=1)
-        self.pub_image = rospy.Publisher('image', Image, queue_size=1)
+        self.pub_aruco = rospy.Publisher(self.namespace+'/markers', MarkerArray, queue_size=1)
+        self.pub_blobs = rospy.Publisher(self.namespace+'/blobs', BlobArray, queue_size=1)
+        self.pub_new_blobs = rospy.Publisher(self.namespace+'/new_blobs', BlobArray, queue_size=1)
+        self.pub_lines = rospy.Publisher(self.namespace+'/lines', LineArray, queue_size=1)
+        self.pub_circles = rospy.Publisher(self.namespace+'/circles', CircleArray, queue_size=1)
+        if(self.publish_image == True):
+            self.pub_image = rospy.Publisher(self.namespace+'/image', Image, queue_size=1)
+            self.pub_compressed_image = rospy.Publisher(self.namespace+'/compressed_image', CompressedImage, queue_size=1)
         self.bridge = CvBridge()
         self.ip = "192.168.42.1"
         self.frame = "tracking_cam3"
@@ -79,10 +97,10 @@ class tc3():
         self.subscription5 = self.sub.subscribe(["root/Processing/ProjectionModule/projectionBuffer"], "projection", 1)
         self.subscription5.get()
         self.subscription5.notify(self.onProjection)
-
-        self.subscription6 = self.sub.subscribe(["root/Comm_task/utilization_max","root/Processing/image"], "camera", 1)
-        self.subscription6.get()
-        self.subscription6.notify(self.onImage)
+        if(self.publish_image == True):
+            self.subscription6 = self.sub.subscribe(["root/Comm_task/utilization_max","root/Processing/image"], "camera", 1)
+            self.subscription6.get()
+            self.subscription6.notify(self.onImage)
     
     def onLog(self,val):
         print(val[0].value)
@@ -152,25 +170,31 @@ class tc3():
             print(e)
 
     def send_blobs_to_ros(self,blobs):
-        msg_array = PointArray()
+        msg_array = BlobArray()
         msg_array.header.stamp = rospy.Time.now()
         msg_array.header.frame_id = self.frame
         for blob in blobs:
-            msg = Point()
-            msg.x = float(blob.cx)
-            msg.y = float(blob.cy)
-            msg_array.points.append(msg)
-        self.pub_blobs.publish(msg_array)
+            msg = Blob()
+            msg.id = blob.id
+            msg.header.stamp = rospy.Time.now()
+            msg.header.frame_id = self.frame
+            msg.pose.x = float(blob.cx)
+            msg.pose.y = float(blob.cy)
+            msg_array.blobs.append(msg)
+        self.pub_new_blobs.publish(msg_array)
 
     def send_new_blobs_to_ros(self,blobs):
-        msg_array = PointArray()
+        msg_array = BlobArray()
         msg_array.header.stamp = rospy.Time.now()
         msg_array.header.frame_id = self.frame
         for blob in blobs:
-            msg = Point()
-            msg.x = float(blob.cx)
-            msg.y = float(blob.cy)
-            msg_array.points.append(msg)
+            msg = Blob()
+            msg.id = blob.id
+            msg.header.stamp = rospy.Time.now()
+            msg.header.frame_id = self.frame
+            msg.pose.x = float(blob.cx)
+            msg.pose.y = float(blob.cy)
+            msg_array.blobs.append(msg)
         self.pub_new_blobs.publish(msg_array)
 
     def send_circles_to_ros(self,circles):
@@ -232,7 +256,7 @@ class tc3():
     def onImage(self,val):
         image = cv2.imdecode(np.frombuffer(val[1].value, np.uint8), -1)
         self.pub_image.publish(self.bridge.cv2_to_imgmsg(image, "bgr8"))
-
+        self.pub_compressed_image.publish(self.bridge.cv2_to_compressed_imgmsg(image))
 if __name__ == '__main__':
     tc3_ex = tc3()
     while not rospy.is_shutdown():
