@@ -1,0 +1,11 @@
+<launch>
+	<node pkg="tc3-ros-package" type="camera.py" name="tc3_node_left" output="screen">
+		<param name="camera_ip" type="string" value="192.168.42.1"/>
+		<param name="camera_frame" type="string" value="tc_left"/>
+	</node>
+	<node pkg="tc3-ros-package" type="camera.py" name="tc3_node_right" output="screen">
+		<param name="camera_ip" type="string" value="192.168.43.1"/>
+		<param name="camera_frame" type="string" value="tc_right"/>
+	</node>
+
+</launch>
