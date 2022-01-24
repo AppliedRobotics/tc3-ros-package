@@ -54,14 +54,15 @@ def onBlobNew(val):
     send_new_blobs_to_ros(blobs.value)
 
 
-
-
+pub_blobs = rospy.Publisher('/blobs', BlobArray, queue_size=1)
+pub_aruco = rospy.Publisher('/markers', MarkerArray, queue_size=1)
+pub_new_blobs = rospy.Publisher('/new_blobs', BlobArray, queue_size=1)
+aruco_tf = tf.TransformBroadcaster()
 
 def main():
-    pub_blobs = rospy.Publisher('/blobs', BlobArray, queue_size=1)
-    pub_aruco = rospy.Publisher('/markers', MarkerArray, queue_size=1)
-    pub_new_blobs = rospy.Publisher('/new_blobs', BlobArray, queue_size=1)
-    aruco_tf = tf.TransformBroadcaster()
+
+
+
     # Creating empty object for parameter tree
     parameter_tree = motorcortex.ParameterTree()
 
@@ -165,6 +166,7 @@ def send_markers_to_ros(markers):
     pub_aruco.publish(msg_array)
 
 def send_new_blobs_to_ros(blobs):
+    print(blobs)
     msg_array = BlobArray()
     msg_array.header.stamp = rospy.Time.now()
     msg_array.header.frame_id = "tracking_cam3"
